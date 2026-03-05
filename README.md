@@ -2,6 +2,13 @@
 
 A family web app that rolls 3D physics dice to randomly select a question from a pool of 1,000+ questions. Family members record their answers as text, audio recordings, and photos — all stored server-side and browsable any time.
 
+| | | |
+|:---:|:---:|:---:|
+| ![Login screen](screenshots/login.png) | ![Dice roll](screenshots/dice-roll.png) | ![Question card](screenshots/question-card.png) |
+| *Login* | *Roll the dice* | *Question appears* |
+| ![Answer form](screenshots/answer-form.png) | ![Audio recording](screenshots/audio-recording.png) | ![Answers panel](screenshots/answers-panel.png) |
+| *Record your answer* | *Voice recording* | *Browse all answers* |
+
 ---
 
 ## Features
@@ -122,6 +129,11 @@ If `WHISPER_URL` is unreachable or transcription fails, audio is still saved —
 ## Installing as a Mobile App (PWA)
 
 The app is a Progressive Web App and can be installed directly to your phone's home screen.
+
+| | |
+|:---:|:---:|
+| ![iOS install](screenshots/ios-install.png) | ![Home screen icon](screenshots/home-screen.png) |
+| *Share → Add to Home Screen (iOS)* | *Installed on home screen* |
 
 **Android (Chrome):**
 1. Open the app in Chrome
