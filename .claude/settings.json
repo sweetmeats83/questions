@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -fsSL \"https://registry.npmjs.org/@3d-dice/dice-box/-/dice-box-1.1.4.tgz\")",
+      "Bash(tar -tzf -)",
+      "WebFetch(domain:localhost)",
+      "Read(//c/WILDSPACE/compose/questions/**)",
+      "WebFetch(domain:www.npmjs.com)"
+    ]
+  }
+}

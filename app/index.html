@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Question Roller</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Questions" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="theme-color" content="#9333ea" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=24" />
+</head>
+<body>
+
+  <div class="top-buttons">
+    <button class="top-btn" id="answersBtn">Answers</button>
+    <button class="top-btn" id="logoutBtn">Logout</button>
+  </div>
+  <div id="dice-box"></div>
+  <p class="tap-hint" id="tapHint">Loading…</p>
+
+  <div id="overlayBackdrop" hidden></div>
+
+  <section class="question-section" id="questionSection" hidden>
+    <div class="question-card">
+      <p class="question-category" id="questionCategory"></p>
+      <p class="question-text" id="questionText"></p>
+    </div>
+
+    <!-- Existing answers for this question (shown when any exist) -->
+    <div class="existing-answers-card" id="existingAnswersCard" hidden>
+      <div id="existingAnswersList"></div>
+    </div>
+
+    <div class="answer-card">
+      <label class="answer-label" for="answerInput">Answer</label>
+      <div class="answer-input-wrap">
+        <textarea
+          id="answerInput"
+          class="answer-input"
+          placeholder="Type your answer here..."
+          rows="4"
+        ></textarea>
+        <div id="answerInputShield" class="answer-input-shield"></div>
+      </div>
+
+      <!-- Media buttons -->
+      <div class="media-buttons">
+        <button class="media-btn record-btn" id="recordBtn" type="button">
+          <span class="record-dot"></span>
+          <span id="recordLabel">Record</span>
+        </button>
+        <button class="media-btn photo-btn" id="photoBtn" type="button">
+          📷 Photo
+        </button>
+        <input type="file" id="photoInput" accept="image/*" capture="environment" hidden />
+      </div>
+
+      <!-- Pending media preview -->
+      <div class="media-preview" id="mediaPreview" hidden></div>
+
+      <div class="author-row">
+        <label class="answer-label" for="authorSelect">Answered by</label>
+        <select id="authorSelect" class="author-select">
+          <option value="">Select name…</option>
+          <option value="__new__">+ Add new name</option>
+        </select>
+        <input id="authorInput" class="author-input" placeholder="Type name…" hidden />
+        <label class="answer-label author-dob-label" for="authorDobInput" hidden>Date of birth</label>
+        <input id="authorDobInput" class="author-input" type="date" hidden />
+      </div>
+
+      <button class="save-btn" id="saveBtn">Save Answer</button>
+      <p class="save-status" id="saveStatus" aria-live="polite"></p>
+    </div>
+
+    <button class="roll-again-btn" id="rollAgainBtn">Roll Again</button>
+  </section>
+
+  <!-- Answers panel -->
+  <div id="answersBackdrop" hidden></div>
+
+  <section class="answers-panel" id="answersPanel" hidden>
+    <div class="answers-panel-card">
+      <p class="answers-panel-title">Saved Answers</p>
+      <div class="answers-filter" id="answersFilter"></div>
+      <div class="answers-list" id="answersList"></div>
+    </div>
+  </section>
+
+  <!-- Photo lightbox -->
+  <div id="photoLightbox" hidden>
+    <img id="lightboxImg" alt="" />
+  </div>
+
+  <script type="module" src="app.js?v=21"></script>
+</body>
+</html>

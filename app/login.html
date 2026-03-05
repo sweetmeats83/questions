@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Question Roller — Login</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,400;1,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="login.css" />
+</head>
+<body>
+  <div class="login-card">
+    <h1 class="login-title">Question Roller</h1>
+    <p class="login-subtitle">Enter the password to continue</p>
+
+    <form id="loginForm">
+      <div class="field">
+        <label class="field-label" for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          class="field-input"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+      <p class="login-error" id="loginError" hidden></p>
+      <button type="submit" class="login-btn" id="loginBtn">Enter</button>
+    </form>
+  </div>
+
+  <script src="login.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:dice-simulator.com)",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:fantasticdice.games)",
+      "Bash(node -e \":*)"
+    ],
+    "additionalDirectories": [
+      "\\\\WILDSPACE\\compose\\questions\\app"
+    ]
+  }
+}

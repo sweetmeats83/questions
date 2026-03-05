@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0c0c20"/>
+
+  <!-- Die face -->
+  <rect x="36" y="36" width="440" height="440" rx="80"
+        fill="#110022" stroke="#9333ea" stroke-width="18"
+        filter="url(#glow)"/>
+
+  <!-- 5 pips (hot pink-purple neon) -->
+  <g fill="#e040fb" filter="url(#glow)">
+    <circle cx="158" cy="158" r="44"/>
+    <circle cx="354" cy="158" r="44"/>
+    <circle cx="256" cy="256" r="44"/>
+    <circle cx="158" cy="354" r="44"/>
+    <circle cx="354" cy="354" r="44"/>
+  </g>
+</svg>

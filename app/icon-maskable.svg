@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable: safe content area is the inner 80% (roughly 102–410px).
+       Fill entire canvas with bg so any mask shape looks clean. -->
+  <defs>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Full-bleed background (fills any mask shape) -->
+  <rect width="512" height="512" fill="#0c0c20"/>
+
+  <!-- Die face — pulled in to safe zone -->
+  <rect x="76" y="76" width="360" height="360" rx="64"
+        fill="#110022" stroke="#9333ea" stroke-width="16"
+        filter="url(#glow)"/>
+
+  <!-- 5 pips scaled to fit -->
+  <g fill="#e040fb" filter="url(#glow)">
+    <circle cx="173" cy="173" r="36"/>
+    <circle cx="339" cy="173" r="36"/>
+    <circle cx="256" cy="256" r="36"/>
+    <circle cx="173" cy="339" r="36"/>
+    <circle cx="339" cy="339" r="36"/>
+  </g>
+</svg>

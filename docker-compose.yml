@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8180:3000"
+    env_file: .env
+    volumes:
+      - ${ANSWERS_PATH:-./data}:/data
+    restart: unless-stopped
