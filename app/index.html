@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@1,400&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=25" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
 
@@ -32,7 +32,7 @@
     <div class="question-card">
       <p class="question-category" id="questionCategory"></p>
       <p class="question-text" id="questionText"></p>
-      <button class="speak-btn" id="speakBtn" type="button" title="Read question aloud">🔊</button>
+      <button class="speak-btn" id="speakBtn" type="button" title="Auto-reading on — tap to turn off">🔊</button>
     </div>
 
     <!-- Existing answers for this question (shown when any exist) -->
@@ -79,6 +79,13 @@
       </div>
 
       <button class="save-btn" id="saveBtn">Save Answer</button>
+      <div id="saveConflict" class="save-conflict" hidden>
+        <p class="save-conflict-msg">Already answered —</p>
+        <div class="save-conflict-btns">
+          <button class="save-conflict-btn" id="saveReplaceBtn" type="button">Replace</button>
+          <button class="save-conflict-btn save-conflict-btn--add" id="saveAddBtn" type="button">Add</button>
+        </div>
+      </div>
       <p class="save-status" id="saveStatus" aria-live="polite"></p>
     </div>
 
@@ -101,6 +108,6 @@
     <img id="lightboxImg" alt="" />
   </div>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=26"></script>
 </body>
 </html>

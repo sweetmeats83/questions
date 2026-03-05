@@ -212,7 +212,7 @@ const VALID_MEDIA_PATH = /^media\/[a-zA-Z0-9_-]+\.(webm|m4a|jpg)$/;
 app.post('/api/answers/:questionId', (req, res) => {
   if (!VALID_QUESTION_ID.test(req.params.questionId))
     return res.status(400).json({ error: 'Invalid question ID' });
-  const { answer, author, audio, photos } = req.body;
+  const { answer, author, audio, photos, forceNew } = req.body;
   if (typeof answer !== 'string') return res.status(400).json({ error: 'Invalid' });
   if (answer.length > MAX_ANSWER_LEN) return res.status(400).json({ error: 'Answer too long' });
   if (author && typeof author === 'string' && author.trim().length > MAX_NAME_LEN)
@@ -235,14 +235,13 @@ app.post('/api/answers/:questionId', (req, res) => {
   if (audio) entry.audio = audio;
   if (Array.isArray(photos) && photos.length) entry.photos = photos;
 
-  const idx = entries.findIndex(e => e.author === authorKey);
-  if (idx >= 0) {
-    entries[idx] = entry;
-  } else {
-    entries.push(entry);
-  }
+  // forceNew = true → add alongside existing answers (multiple answers per author)
+  // forceNew = false → replace all previous answers from this author
+  const newEntries = forceNew === true
+    ? [...entries, entry]
+    : [...entries.filter(e => e.author !== authorKey), entry];
 
-  answers[req.params.questionId] = entries;
+  answers[req.params.questionId] = newEntries;
   saveAnswers(answers);
   res.json({ ok: true });
 });

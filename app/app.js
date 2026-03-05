@@ -21,6 +21,7 @@ let pendingAudioPath = null;
 let pendingPhotoPaths = [];
 let currentPlayingAudio = null;
 let currentTtsAudio = null;
+let autoSpeak = true;
 
 // ── Questions / members loading ─────────────────────────────────────────────
 
@@ -78,26 +79,32 @@ function stopTts() {
     currentTtsAudio.pause();
     currentTtsAudio = null;
   }
-  const btn = document.getElementById('speakBtn');
-  if (btn) btn.classList.remove('speaking');
+  document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
 }
 
-async function speakQuestion() {
-  if (!currentQuestion) return;
-  const btn = document.getElementById('speakBtn');
-  if (currentTtsAudio && !currentTtsAudio.paused) {
-    stopTts();
-    return;
-  }
+async function speakText(text, btn) {
+  if (btn.classList.contains('speaking')) { stopTts(); return; }
+  stopTts();
   btn.classList.add('speaking');
   try {
-    const url = '/api/speak?text=' + encodeURIComponent(currentQuestion.question);
+    const url = '/api/speak?text=' + encodeURIComponent(text);
     currentTtsAudio = new Audio(url);
     currentTtsAudio.play();
     currentTtsAudio.onended = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
     currentTtsAudio.onerror = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
   } catch {
     btn.classList.remove('speaking');
+  }
+}
+
+function toggleAutoSpeak() {
+  const btn = document.getElementById('speakBtn');
+  autoSpeak = !autoSpeak;
+  stopTts();
+  btn.classList.toggle('speak-btn--muted', !autoSpeak);
+  btn.title = autoSpeak ? 'Auto-reading on — tap to turn off' : 'Auto-reading off — tap to turn on';
+  if (autoSpeak && currentQuestion) {
+    speakText(currentQuestion.question, btn);
   }
 }
 
@@ -127,7 +134,10 @@ function renderExistingAnswers(answers) {
     card.hidden = true;
     return;
   }
+  // Deduplicate badges by author name
+  const seen = new Set();
   list.innerHTML = answers
+    .filter(a => { const k = a.author || 'Anonymous'; if (seen.has(k)) return false; seen.add(k); return true; })
     .map(a => `<span class="answered-badge">${escapeHtml(a.author || 'Anonymous')} ✓</span>`)
     .join('');
   card.hidden = false;
@@ -152,6 +162,7 @@ async function showQuestion(question) {
   document.getElementById('authorDobInput').hidden = true;
   document.querySelector('.author-dob-label').hidden = true;
   document.getElementById('existingAnswersCard').hidden = true;
+  hideSaveConflict();
 
   // Reset media state
   pendingAudioPath = null;
@@ -170,6 +181,10 @@ async function showQuestion(question) {
 
   document.getElementById('tapHint').textContent = '';
   showOverlay();
+
+  if (autoSpeak) {
+    setTimeout(() => speakText(currentQuestion.question, document.getElementById('speakBtn')), 350);
+  }
 }
 
 // ── Answer / author helpers ──────────────────────────────────────────────────
@@ -181,7 +196,17 @@ function setAnswerEnabled(enabled) {
   document.getElementById('photoBtn').classList.toggle('locked', !enabled);
 }
 
-async function saveAnswer() {
+function showSaveConflict() {
+  document.getElementById('saveBtn').hidden = true;
+  document.getElementById('saveConflict').hidden = false;
+}
+
+function hideSaveConflict() {
+  document.getElementById('saveBtn').hidden = false;
+  document.getElementById('saveConflict').hidden = true;
+}
+
+async function saveAnswer(forceNew = false) {
   if (!currentQuestion) return;
   const answer = document.getElementById('answerInput').value.trim();
   const saveStatus = document.getElementById('saveStatus');
@@ -215,6 +240,15 @@ async function saveAnswer() {
     author = select.value;
   }
 
+  const authorKey = author.trim();
+
+  // If this author already has an answer and we haven't confirmed, show conflict prompt
+  if (!forceNew && currentAnswers.some(a => a.author === authorKey)) {
+    showSaveConflict();
+    return;
+  }
+  hideSaveConflict();
+
   try {
     const res = await fetch('/api/answers/' + currentQuestion.id, {
       method: 'POST',
@@ -224,21 +258,23 @@ async function saveAnswer() {
         author,
         audio: pendingAudioPath || undefined,
         photos: pendingPhotoPaths.length ? pendingPhotoPaths : undefined,
+        forceNew: forceNew || undefined,
       }),
     });
     if (res.status === 401) { window.location.href = '/login.html'; return; }
 
-    // Update local array
-    const idx = currentAnswers.findIndex(a => a.author === author);
     const entry = {
-      answer, author,
+      answer, author: authorKey,
       ...(pendingAudioPath && { audio: pendingAudioPath }),
       ...(pendingPhotoPaths.length && { photos: [...pendingPhotoPaths] }),
     };
-    if (idx >= 0) {
-      currentAnswers[idx] = entry;
-    } else {
+    if (forceNew) {
       currentAnswers.push(entry);
+    } else {
+      // Replace all existing entries for this author
+      const filtered = currentAnswers.filter(a => a.author !== authorKey);
+      currentAnswers.length = 0;
+      currentAnswers.push(...filtered, entry);
     }
     renderExistingAnswers(currentAnswers);
 
@@ -314,7 +350,11 @@ function renderAnswersPanel() {
           : qAnswers;
         return `
           <div class="answer-entry">
-            <p class="answer-entry-question">${escapeHtml(q.question)}</p>
+            <div class="answer-entry-header">
+              <p class="answer-entry-question">${escapeHtml(q.question)}</p>
+              <button class="answer-speak-btn" data-qid="${q.id}" title="Read aloud" type="button">🔊</button>
+              <button class="answer-edit-btn" data-qid="${q.id}" title="Add or edit a response" type="button">✏</button>
+            </div>
             ${shown.map(a => `
               <div class="answer-sub-entry">
                 <p class="answer-entry-answer">${escapeHtml(a.answer)}</p>
@@ -327,6 +367,22 @@ function renderAnswersPanel() {
       }).join('')}
     </div>
   `).join('');
+
+  // Wire up speak buttons
+  list.querySelectorAll('.answer-speak-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = questions.find(q => String(q.id) === btn.dataset.qid);
+      if (q) speakText(q.question, btn);
+    });
+  });
+
+  // Wire up edit buttons
+  list.querySelectorAll('.answer-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const q = questions.find(q => String(q.id) === btn.dataset.qid);
+      if (q) { closeAnswers(); showQuestion(q); }
+    });
+  });
 
   // Wire up media interactions after rendering
   list.querySelectorAll('.answer-play-btn').forEach(btn => {
@@ -389,6 +445,7 @@ async function openAnswers() {
 }
 
 function closeAnswers() {
+  stopTts();
   document.getElementById('answersBackdrop').hidden = true;
   document.getElementById('answersPanel').hidden = true;
 }
@@ -614,8 +671,10 @@ function handleRoll() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Wire up all event listeners immediately — don't let async init failures block them
   document.getElementById('dice-box').addEventListener('click', handleRoll);
-  document.getElementById('speakBtn').addEventListener('click', speakQuestion);
-  document.getElementById('saveBtn').addEventListener('click', saveAnswer);
+  document.getElementById('speakBtn').addEventListener('click', toggleAutoSpeak);
+  document.getElementById('saveBtn').addEventListener('click', () => saveAnswer(false));
+  document.getElementById('saveReplaceBtn').addEventListener('click', () => saveAnswer(false));
+  document.getElementById('saveAddBtn').addEventListener('click', () => saveAnswer(true));
   document.getElementById('rollAgainBtn').addEventListener('click', handleRoll);
   document.getElementById('logoutBtn').addEventListener('click', logout);
   document.getElementById('answersBtn').addEventListener('click', openAnswers);
@@ -665,7 +724,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       answerInput.value = '';
       setAnswerEnabled(false);
     } else if (select.value) {
-      const existing = currentAnswers.find(a => a.author === select.value);
+      hideSaveConflict();
+      const existing = currentAnswers.findLast(a => a.author === select.value);
       answerInput.value = existing ? existing.answer : '';
       // Restore existing media so re-saving preserves it
       pendingAudioPath = existing?.audio || null;
@@ -673,6 +733,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderMediaPreview();
       setAnswerEnabled(true);
     } else {
+      hideSaveConflict();
       answerInput.value = '';
       pendingAudioPath = null;
       pendingPhotoPaths = [];
