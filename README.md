@@ -1,5 +1,7 @@
 # Question Roller
 
+> **Vibe coded** — This app was built entirely with AI assistance (Claude Code). No traditional development process was harmed in the making of this project.
+
 A family web app that rolls 3D physics dice to randomly select a question from a pool of 1,000+ questions. Family members record their answers as text, audio recordings, and photos — all stored server-side and browsable any time. Questions can be read aloud via text-to-speech, and voice answers are automatically transcribed.
 
 | | | |
@@ -38,15 +40,60 @@ A family web app that rolls 3D physics dice to randomly select a question from a
 
 ## Quick Start
 
-### 1. Clone and configure
+### 1. Create your compose file
 
-```bash
-git clone <your-repo-url>
-cd questions
-cp .env.example .env
+Create a `docker-compose.yml`:
+
+```yaml
+services:
+  web:
+    image: sweetmeats83/question-roller:latest
+    ports:
+      - "8180:3000"
+    env_file: .env
+    volumes:
+      - ${ANSWERS_PATH:-./data}:/data
+    depends_on:
+      - speaches
+    restart: unless-stopped
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    ports:
+      - "8082:8000"
+    volumes:
+      - /path/to/models/cache:/home/ubuntu/.cache/huggingface/hub
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  speaches-init:
+    image: curlimages/curl:latest
+    depends_on:
+      speaches:
+        condition: service_healthy
+    command: >
+      sh -c "
+        curl -sX POST http://speaches:8000/v1/models/Systran%2Ffaster-whisper-small &&
+        curl -sX POST http://speaches:8000/v1/models/speaches-ai%2FKokoro-82M-v1.0-ONNX
+      "
+    restart: on-failure
 ```
 
-Edit `.env`:
+### 2. Configure
+
+Create a `.env` file:
 
 ```env
 APP_PASSWORD=your-family-password
@@ -61,15 +108,15 @@ TTS_MODEL=speaches-ai/Kokoro-82M-v1.0-ONNX
 TTS_VOICE=af_heart                 # af_heart, af_bella, am_michael, am_adam, bf_emma, bm_george
 ```
 
-### 2. Build and run
+### 3. Run
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 The app will be available at **http://localhost:8180**
 
-### 3. First use
+### 4. First use
 
 Navigate to the app, enter the password from your `.env`, and tap the screen to roll the dice.
 
@@ -251,25 +298,30 @@ docker compose exec web sh -c "rm -rf /data/media/* /data/answers.json /data/mem
 
 ---
 
-## Rebuilding After Changes
+## Updating
 
-If you modify any files in `app/` or `server.js`:
-
-```bash
-docker compose up -d --build
-```
-
-If you only changed `server.js` (no npm dependency changes), a restart is enough:
+To pull the latest image:
 
 ```bash
-docker compose restart web
+docker compose pull
+docker compose up -d
 ```
 
 ---
 
 ## Adding Questions
 
-Questions live in `app/questions.json`. Each entry requires:
+Questions are baked into the image. To add your own, clone the repo, edit `app/questions.json`, rebuild, and push your own image:
+
+```bash
+git clone <your-repo-url>
+cd questions
+# edit app/questions.json
+docker build -t your-username/question-roller:latest .
+docker push your-username/question-roller:latest
+```
+
+Each entry requires:
 
 ```json
 {
@@ -279,11 +331,7 @@ Questions live in `app/questions.json`. Each entry requires:
 }
 ```
 
-IDs must be unique. After editing, rebuild the image:
-
-```bash
-docker compose up -d --build
-```
+IDs must be unique.
 
 ---
 
