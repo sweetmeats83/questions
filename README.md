@@ -17,11 +17,12 @@ A family web app that rolls 3D physics dice to randomly select a question from a
 - **1,035 questions** across multiple categories
 - **Per-member answers** — select or create a family member before answering
 - **Age tracking** — stores each member's date of birth; automatically records how old they were when they answered
-- **Text-to-speech** — 🔊 button reads the question aloud using Kokoro TTS (toggle to stop)
+- **Auto-read questions** — questions are read aloud automatically when they appear; 🔊 button toggles auto-read on/off for the session
 - **Audio recording** — record voice answers directly in the browser; automatically transcribed via Whisper
 - **Photo capture** — take or upload photos, compressed client-side before upload
 - **Chunked uploads** — safe for large recordings behind Cloudflare or other proxies (1 MB chunks)
-- **Answers panel** — browse all answers, filterable by author, grouped by category
+- **Answers panel** — browse all answers, filterable by author, grouped by category; each question has 🔊 (read aloud) and ✏ (open to add/edit) buttons
+- **Multiple answers per person** — save a second or third answer over the years; prompted to Replace or Add when a duplicate is detected
 - **Installable PWA** — works as a home screen app on iOS and Android
 - **Session auth** — single password protects all data
 - **Security hardened** — helmet headers, rate limiting, input validation, mimeType whitelist, file size caps
@@ -112,7 +113,7 @@ The container mounts this directory as `/data` inside the container, running as 
 The bundled `docker-compose.yml` includes a [speaches](https://github.com/speaches-ai/speaches) container that handles both:
 
 - **Speech-to-text** — voice recordings are transcribed automatically after upload using `faster-whisper-small`
-- **Text-to-speech** — the 🔊 button on the question card reads the question aloud using Kokoro TTS
+- **Text-to-speech** — questions are read aloud automatically when they appear (Kokoro TTS); the 🔊 button on the question card toggles auto-read on/off for the session. Questions in the answers panel also have individual 🔊 buttons.
 
 Speaches runs on port `8082` and is reachable by the `web` container over the internal Docker network as `http://speaches:8000`. The `speaches-init` container registers both models on every startup via the API.
 
@@ -213,7 +214,7 @@ All endpoints except login/logout require a valid session cookie.
 | `POST` | `/api/members` | Add or update a member `{ name, dob }` |
 | `GET` | `/api/answers` | Get all answers (all questions) |
 | `GET` | `/api/answers/:id` | Get answers for one question |
-| `POST` | `/api/answers/:id` | Save an answer `{ answer, author, audio?, photos? }` |
+| `POST` | `/api/answers/:id` | Save an answer `{ answer, author, audio?, photos?, forceNew? }` — `forceNew: true` adds alongside existing answers; default replaces |
 | `DELETE` | `/api/answers/:id` | Delete all answers for a question |
 | `POST` | `/api/upload/chunk` | Upload a file chunk (multipart) |
 | `GET` | `/api/speak?text=...` | Proxy TTS request to speaches; streams back MP3 audio |
