@@ -6,6 +6,7 @@ const multer = require('multer');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
 
 const app = express();
 const STATIC_DIR = path.join(__dirname, 'static');
@@ -15,8 +16,11 @@ const MEDIA_DIR = '/data/media';
 const TMP_DIR = '/data/tmp';
 const PASSWORD = process.env.APP_PASSWORD || 'changeme';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'changeme-secret';
-const WHISPER_URL = process.env.WHISPER_URL || 'http://localhost:8081';
+const WHISPER_URL = process.env.WHISPER_URL || 'http://speaches:8000';
 const WHISPER_MODEL = process.env.WHISPER_MODEL || 'Systran/faster-whisper-small';
+const TTS_URL = process.env.TTS_URL || 'http://speaches:8000';
+const TTS_MODEL = process.env.TTS_MODEL || 'speaches-ai/Kokoro-82M-v1.0-ONNX';
+const TTS_VOICE = process.env.TTS_VOICE || 'af_heart';
 
 // Ensure media/tmp dirs exist at startup; clean up any leftover tmp chunks
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -347,6 +351,29 @@ app.post('/api/upload/chunk', chunkUpload.single('chunk'), async (req, res) => {
   }
 
   res.json({ done: true, path: `media/${filename}`, transcription });
+});
+
+// ── TTS proxy — streams speaches audio back to the browser ────────────────
+
+app.get('/api/speak', async (req, res) => {
+  const text = req.query.text;
+  if (!text || typeof text !== 'string' || text.length > 2000) {
+    return res.status(400).json({ error: 'Invalid text' });
+  }
+  try {
+    const ttsRes = await fetch(`${TTS_URL}/v1/audio/speech`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: TTS_MODEL, input: text, voice: TTS_VOICE, response_format: 'mp3' }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!ttsRes.ok) throw new Error(`TTS ${ttsRes.status}`);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    Readable.fromWeb(ttsRes.body).pipe(res);
+  } catch (e) {
+    console.error('TTS failed:', e.message);
+    if (!res.headersSent) res.status(502).json({ error: 'TTS unavailable' });
+  }
 });
 
 // ── Media file serving (auth required — same middleware already applied above) ──

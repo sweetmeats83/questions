@@ -753,6 +753,34 @@ input[type="date"].author-input {
   cursor: pointer;
 }
 
+/* ── Speak button ────────────────────────────────────────── */
+.speak-btn {
+  display: block;
+  margin-left: auto;
+  margin-top: 0.75rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  border: 1px solid rgba(147, 51, 234, 0.5);
+  border-radius: 2rem;
+  background: transparent;
+  color: #a855f7;
+  cursor: pointer;
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.speak-btn.speaking {
+  border-color: rgba(147, 51, 234, 0.9);
+  color: #c084fc;
+  animation: pulse-speak 1.5s ease infinite;
+}
+
+@keyframes pulse-speak {
+  0%, 100% { box-shadow: 0 0 10px rgba(168, 85, 247, 0.4); }
+  50%       { box-shadow: 0 0 22px rgba(168, 85, 247, 0.85); }
+}
+
 /* ── Photo lightbox ──────────────────────────────────────── */
 #photoLightbox {
   position: fixed;

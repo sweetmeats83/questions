@@ -1,6 +1,6 @@
 # Question Roller
 
-A family web app that rolls 3D physics dice to randomly select a question from a pool of 1,000+ questions. Family members record their answers as text, audio recordings, and photos — all stored server-side and browsable any time.
+A family web app that rolls 3D physics dice to randomly select a question from a pool of 1,000+ questions. Family members record their answers as text, audio recordings, and photos — all stored server-side and browsable any time. Questions can be read aloud via text-to-speech, and voice answers are automatically transcribed.
 
 | | | |
 |:---:|:---:|:---:|
@@ -17,7 +17,8 @@ A family web app that rolls 3D physics dice to randomly select a question from a
 - **1,035 questions** across multiple categories
 - **Per-member answers** — select or create a family member before answering
 - **Age tracking** — stores each member's date of birth; automatically records how old they were when they answered
-- **Audio recording** — record voice answers directly in the browser; automatically transcribed via faster-whisper
+- **Text-to-speech** — 🔊 button reads the question aloud using Kokoro TTS (toggle to stop)
+- **Audio recording** — record voice answers directly in the browser; automatically transcribed via Whisper
 - **Photo capture** — take or upload photos, compressed client-side before upload
 - **Chunked uploads** — safe for large recordings behind Cloudflare or other proxies (1 MB chunks)
 - **Answers panel** — browse all answers, filterable by author, grouped by category
@@ -30,7 +31,7 @@ A family web app that rolls 3D physics dice to randomly select a question from a
 ## Requirements
 
 - [Docker](https://docs.docker.com/get-docker/) + Docker Compose
-- *(Optional)* A [faster-whisper](https://github.com/fedirz/faster-whisper-server) instance for audio transcription
+- *(Optional, but bundled)* An NVIDIA GPU for the [speaches](https://github.com/speaches-ai/speaches) STT+TTS container
 
 ---
 
@@ -52,8 +53,11 @@ SESSION_SECRET=a-long-random-string-change-this
 PUID=1000          # run: id -u  to find yours
 PGID=1000          # run: id -g  to find yours
 ANSWERS_PATH=/path/to/persistent/data/
-WHISPER_URL=http://192.168.1.100:8081   # optional
+WHISPER_URL=http://speaches:8000   # uses the bundled container
 WHISPER_MODEL=Systran/faster-whisper-small
+TTS_URL=http://speaches:8000       # uses the bundled container
+TTS_MODEL=speaches-ai/Kokoro-82M-v1.0-ONNX
+TTS_VOICE=af_heart                 # af_heart, af_bella, am_michael, am_adam, bf_emma, bm_george
 ```
 
 ### 2. Build and run
@@ -79,8 +83,11 @@ Navigate to the app, enter the password from your `.env`, and tap the screen to 
 | `PUID` | `1000` | User ID the container process runs as. Match your host user (`id -u`). |
 | `PGID` | `1000` | Group ID the container process runs as. Match your host group (`id -g`). |
 | `ANSWERS_PATH` | `./data` | Host path for persistent data (answers, members, media files) |
-| `WHISPER_URL` | `http://localhost:8081` | URL of a faster-whisper server for audio transcription |
-| `WHISPER_MODEL` | `Systran/faster-whisper-small` | Whisper model to use. Larger models are more accurate but slower. |
+| `WHISPER_URL` | `http://speaches:8000` | URL of the Whisper STT server (OpenAI-compatible `/v1/audio/transcriptions`) |
+| `WHISPER_MODEL` | `Systran/faster-whisper-small` | Whisper model ID. Larger models are more accurate but slower. |
+| `TTS_URL` | `http://speaches:8000` | URL of the TTS server (OpenAI-compatible `/v1/audio/speech`) |
+| `TTS_MODEL` | `speaches-ai/Kokoro-82M-v1.0-ONNX` | TTS model ID (HuggingFace model ID, not OpenAI name) |
+| `TTS_VOICE` | `af_heart` | Kokoro voice. Options: `af_heart`, `af_bella`, `am_michael`, `am_adam`, `bf_emma`, `bm_george` |
 
 ---
 
@@ -100,29 +107,43 @@ The container mounts this directory as `/data` inside the container, running as 
 
 ---
 
-## Audio Transcription (Optional)
+## Speech (STT + TTS)
 
-Audio recordings are automatically transcribed to text using a [faster-whisper-server](https://github.com/fedirz/faster-whisper-server) instance. This runs as a separate service — it does not need to be on the same machine, just reachable on your local network.
+The bundled `docker-compose.yml` includes a [speaches](https://github.com/speaches-ai/speaches) container that handles both:
 
-**Example Docker Compose for faster-whisper** (on a separate machine or same compose file):
+- **Speech-to-text** — voice recordings are transcribed automatically after upload using `faster-whisper-small`
+- **Text-to-speech** — the 🔊 button on the question card reads the question aloud using Kokoro TTS
 
-```yaml
-services:
-  whisper:
-    image: fedirz/faster-whisper-server:latest-cuda   # or latest-cpu
-    ports:
-      - "8081:8000"
-    environment:
-      - WHISPER__MODEL=Systran/faster-whisper-small
-    volumes:
-      - whisper-cache:/root/.cache/huggingface
-    restart: unless-stopped
+Speaches runs on port `8082` and is reachable by the `web` container over the internal Docker network as `http://speaches:8000`. The `speaches-init` container registers both models on every startup via the API.
 
-volumes:
-  whisper-cache:
+### First-time model download
+
+Models are downloaded from HuggingFace on first use and cached to the host path mounted in `docker-compose.yml`. Before the first run, ensure the cache directory is writable by the speaches user (uid 1000):
+
+```bash
+chown -R 1000:1000 /path/to/your/models/cache
 ```
 
-If `WHISPER_URL` is unreachable or transcription fails, audio is still saved — the transcription just won't auto-fill the answer text.
+Then bring the stack up — `speaches-init` will trigger both downloads automatically:
+
+```bash
+docker compose up -d
+```
+
+You can also trigger downloads manually:
+
+```bash
+curl -X POST "http://localhost:8082/v1/models/Systran%2Ffaster-whisper-small"
+curl -X POST "http://localhost:8082/v1/models/speaches-ai%2FKokoro-82M-v1.0-ONNX"
+```
+
+### GPU requirement
+
+The bundled speaches image (`latest-cuda-12.6.3`) requires an NVIDIA GPU with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). If you don't have a GPU, switch to a CPU image or point `WHISPER_URL`/`TTS_URL` at an external server.
+
+### Graceful degradation
+
+If speaches is unreachable or transcription fails, audio is still saved — the transcription just won't auto-fill the answer text. If TTS fails, the 🔊 button silently does nothing.
 
 ---
 
@@ -195,6 +216,7 @@ All endpoints except login/logout require a valid session cookie.
 | `POST` | `/api/answers/:id` | Save an answer `{ answer, author, audio?, photos? }` |
 | `DELETE` | `/api/answers/:id` | Delete all answers for a question |
 | `POST` | `/api/upload/chunk` | Upload a file chunk (multipart) |
+| `GET` | `/api/speak?text=...` | Proxy TTS request to speaches; streams back MP3 audio |
 | `GET` | `/media/:filename` | Serve a media file |
 
 ---
@@ -268,4 +290,5 @@ docker compose up -d --build
 
 - **[dice-box](https://github.com/3d-dice/dice-box)** by [3d-dice](https://github.com/3d-dice) — 3D physics dice rendering (MIT License)
 - **[theme-rust](https://github.com/3d-dice/theme-rust)** by [3d-dice](https://github.com/3d-dice) — rust dice theme (MIT License)
-- **[faster-whisper-server](https://github.com/fedirz/faster-whisper-server)** by fedirz — audio transcription backend (MIT License)
+- **[speaches](https://github.com/speaches-ai/speaches)** by speaches-ai — OpenAI-compatible STT (faster-whisper) + TTS (Kokoro) server (MIT License)
+- **[Kokoro-82M](https://huggingface.co/speaches-ai/Kokoro-82M-v1.0-ONNX)** by speaches-ai — fast, high-quality English TTS model

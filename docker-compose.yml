@@ -6,4 +6,39 @@ services:
     env_file: .env
     volumes:
       - ${ANSWERS_PATH:-./data}:/data
+    depends_on:
+      - speaches
     restart: unless-stopped
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cuda-12.6.3
+    ports:
+      - "8082:8000"
+    volumes:
+      - /srv/dev-disk-by-uuid-f001b4c8-72d6-484c-9c91-ebb29810580a/Blankenship/kidquestion/models:/home/ubuntu/.cache/huggingface/hub
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  speaches-init:
+    image: curlimages/curl:latest
+    depends_on:
+      speaches:
+        condition: service_healthy
+    command: >
+      sh -c "
+        curl -sX POST http://speaches:8000/v1/models/Systran%2Ffaster-whisper-small &&
+        curl -sX POST http://speaches:8000/v1/models/speaches-ai%2FKokoro-82M-v1.0-ONNX
+      "
+    restart: on-failure

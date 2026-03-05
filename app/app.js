@@ -20,6 +20,7 @@ let recordingSeconds = 0;
 let pendingAudioPath = null;
 let pendingPhotoPaths = [];
 let currentPlayingAudio = null;
+let currentTtsAudio = null;
 
 // ── Questions / members loading ─────────────────────────────────────────────
 
@@ -70,6 +71,36 @@ async function initDice() {
   };
 }
 
+// ── TTS ──────────────────────────────────────────────────────────────────────
+
+function stopTts() {
+  if (currentTtsAudio) {
+    currentTtsAudio.pause();
+    currentTtsAudio = null;
+  }
+  const btn = document.getElementById('speakBtn');
+  if (btn) btn.classList.remove('speaking');
+}
+
+async function speakQuestion() {
+  if (!currentQuestion) return;
+  const btn = document.getElementById('speakBtn');
+  if (currentTtsAudio && !currentTtsAudio.paused) {
+    stopTts();
+    return;
+  }
+  btn.classList.add('speaking');
+  try {
+    const url = '/api/speak?text=' + encodeURIComponent(currentQuestion.question);
+    currentTtsAudio = new Audio(url);
+    currentTtsAudio.play();
+    currentTtsAudio.onended = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
+    currentTtsAudio.onerror = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
+  } catch {
+    btn.classList.remove('speaking');
+  }
+}
+
 // ── Overlay ─────────────────────────────────────────────────────────────────
 
 function showOverlay() {
@@ -78,6 +109,7 @@ function showOverlay() {
 }
 
 function hideOverlay() {
+  stopTts();
   document.getElementById('overlayBackdrop').hidden = true;
   document.getElementById('questionSection').hidden = true;
 }
@@ -582,6 +614,7 @@ function handleRoll() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Wire up all event listeners immediately — don't let async init failures block them
   document.getElementById('dice-box').addEventListener('click', handleRoll);
+  document.getElementById('speakBtn').addEventListener('click', speakQuestion);
   document.getElementById('saveBtn').addEventListener('click', saveAnswer);
   document.getElementById('rollAgainBtn').addEventListener('click', handleRoll);
   document.getElementById('logoutBtn').addEventListener('click', logout);
