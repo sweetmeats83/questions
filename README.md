@@ -261,3 +261,11 @@ IDs must be unique. After editing, rebuild the image:
 ```bash
 docker compose up -d --build
 ```
+
+---
+
+## Credits
+
+- **[dice-box](https://github.com/3d-dice/dice-box)** by [3d-dice](https://github.com/3d-dice) — 3D physics dice rendering (MIT License)
+- **[theme-rust](https://github.com/3d-dice/theme-rust)** by [3d-dice](https://github.com/3d-dice) — rust dice theme (MIT License)
+- **[faster-whisper-server](https://github.com/fedirz/faster-whisper-server)** by fedirz — audio transcription backend (MIT License)
