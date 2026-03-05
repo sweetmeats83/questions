@@ -13,7 +13,7 @@ A family web app that rolls 3D physics dice to randomly select a question from a
 
 ## Features
 
-- **3D dice roll** — Babylon.js + Ammo.js WebAssembly physics via `@3d-dice/dice-box`
+- **3D dice roll** — Babylon.js + Ammo.js WebAssembly physics via [@3d-dice/dice-box](https://github.com/3d-dice/dice-box)
 - **1,035 questions** across multiple categories
 - **Per-member answers** — select or create a family member before answering
 - **Age tracking** — stores each member's date of birth; automatically records how old they were when they answered
