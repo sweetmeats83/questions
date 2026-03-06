@@ -1,6 +1,6 @@
 services:
   web:
-    image: sweetmeats83/question-roller:latest
+    build: .
     ports:
       - "8180:3000"
     env_file: .env

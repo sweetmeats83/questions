@@ -20,8 +20,10 @@ let recordingSeconds = 0;
 let pendingAudioPath = null;
 let pendingPhotoPaths = [];
 let currentPlayingAudio = null;
-let currentTtsAudio = null;
 let autoSpeak = true;
+
+// Single reusable Audio element for TTS — avoids creating a new object per request
+const ttsAudio = new Audio();
 
 // ── Questions / members loading ─────────────────────────────────────────────
 
@@ -75,10 +77,10 @@ async function initDice() {
 // ── TTS ──────────────────────────────────────────────────────────────────────
 
 function stopTts() {
-  if (currentTtsAudio) {
-    currentTtsAudio.pause();
-    currentTtsAudio = null;
-  }
+  ttsAudio.pause();
+  ttsAudio.onended = null;
+  ttsAudio.onerror = null;
+  ttsAudio.src = '';
   document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
 }
 
@@ -88,10 +90,10 @@ async function speakText(text, btn) {
   btn.classList.add('speaking');
   try {
     const url = '/api/speak?text=' + encodeURIComponent(text);
-    currentTtsAudio = new Audio(url);
-    currentTtsAudio.play();
-    currentTtsAudio.onended = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
-    currentTtsAudio.onerror = () => { btn.classList.remove('speaking'); currentTtsAudio = null; };
+    ttsAudio.onended = () => btn.classList.remove('speaking');
+    ttsAudio.onerror = () => btn.classList.remove('speaking');
+    ttsAudio.src = url;
+    ttsAudio.play();
   } catch {
     btn.classList.remove('speaking');
   }
@@ -209,12 +211,11 @@ function hideSaveConflict() {
 async function saveAnswer(forceNew = false) {
   if (!currentQuestion) return;
   const answer = document.getElementById('answerInput').value.trim();
-  const saveStatus = document.getElementById('saveStatus');
   const select = document.getElementById('authorSelect');
   const authorInput = document.getElementById('authorInput');
 
   if (!answer) {
-    saveStatus.textContent = 'Write something before saving!';
+    setStatus('Write something before saving!', true);
     return;
   }
 
@@ -278,10 +279,10 @@ async function saveAnswer(forceNew = false) {
     }
     renderExistingAnswers(currentAnswers);
 
-    saveStatus.textContent = 'Answer saved!';
-    setTimeout(() => { saveStatus.textContent = ''; }, 3000);
+    setStatus('Answer saved!');
+    setTimeout(() => setStatus(''), 3000);
   } catch {
-    saveStatus.textContent = 'Save failed. Try again.';
+    setStatus('Save failed. Try again.', true);
   }
 }
 
@@ -292,6 +293,12 @@ async function logout() {
 
 function escapeHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.classList.toggle('save-status--error', isError);
 }
 
 // ── Answers panel ────────────────────────────────────────────────────────────
@@ -468,7 +475,6 @@ async function uploadChunked(blob, mimeType) {
   const CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB
   const totalChunks = Math.ceil(blob.size / CHUNK_SIZE);
   const uploadId = crypto.randomUUID();
-  const saveStatus = document.getElementById('saveStatus');
 
   for (let i = 0; i < totalChunks; i++) {
     const chunk = blob.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
@@ -484,7 +490,7 @@ async function uploadChunked(blob, mimeType) {
     const result = await res.json();
 
     if (totalChunks > 1) {
-      saveStatus.textContent = `Uploading… ${Math.round(((i + 1) / totalChunks) * 100)}%`;
+      setStatus(`Uploading… ${Math.round(((i + 1) / totalChunks) * 100)}%`);
     }
 
     if (result.done) return result;
@@ -522,7 +528,7 @@ async function startRecording() {
       document.getElementById('recordLabel').textContent = `${m}:${s}`;
     }, 1000);
   } catch {
-    document.getElementById('saveStatus').textContent = 'Microphone access denied.';
+    setStatus('Microphone access denied.', true);
   }
 }
 
@@ -543,8 +549,7 @@ function updateRecordingUI(recording) {
 }
 
 async function processAudioUpload(blob) {
-  const saveStatus = document.getElementById('saveStatus');
-  saveStatus.textContent = 'Uploading…';
+  setStatus('Uploading…');
   try {
     const result = await uploadChunked(blob, blob.type || 'audio/webm');
     if (result && result.done) {
@@ -553,14 +558,14 @@ async function processAudioUpload(blob) {
         document.getElementById('answerInput').value = result.transcription;
         const select = document.getElementById('authorSelect');
         if (select.value && select.value !== '__new__') setAnswerEnabled(true);
-        saveStatus.textContent = 'Transcribed! Edit if needed, then save.';
+        setStatus('Transcribed! Edit if needed, then save.');
       } else {
-        saveStatus.textContent = 'Audio saved. Add your written answer too.';
+        setStatus('Audio saved. Add your written answer too.');
       }
       renderMediaPreview();
     }
   } catch {
-    saveStatus.textContent = 'Upload failed. Try again.';
+    setStatus('Upload failed. Try again.', true);
   }
 }
 
@@ -585,19 +590,18 @@ async function compressImage(file) {
 }
 
 async function handlePhotoSelected(file) {
-  const saveStatus = document.getElementById('saveStatus');
-  saveStatus.textContent = 'Uploading photo…';
+  setStatus('Uploading photo…');
   try {
     const compressed = await compressImage(file);
     const result = await uploadChunked(compressed, 'image/jpeg');
     if (result && result.done) {
       pendingPhotoPaths.push(result.path);
-      saveStatus.textContent = 'Photo added!';
-      setTimeout(() => { saveStatus.textContent = ''; }, 2000);
+      setStatus('Photo added!');
+      setTimeout(() => setStatus(''), 2000);
       renderMediaPreview();
     }
   } catch {
-    saveStatus.textContent = 'Photo upload failed.';
+    setStatus('Photo upload failed.', true);
   }
 }
 
@@ -767,7 +771,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Load data and dice — dice failure is isolated so other features still work
-  await Promise.all([loadQuestions(), loadMembers()]);
+  try {
+    await Promise.all([loadQuestions(), loadMembers()]);
+  } catch (e) {
+    console.error('Failed to load app data:', e);
+    document.getElementById('tapHint').textContent = 'Failed to load. Refresh to try again.';
+    return;
+  }
   document.getElementById('tapHint').textContent = 'Loading dice…';
   try {
     await initDice();

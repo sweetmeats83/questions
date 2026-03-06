@@ -363,6 +363,11 @@ input[type="date"].author-input {
   text-align: center;
 }
 
+.save-status--error {
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(255, 107, 107, 0.6);
+}
+
 .roll-again-btn {
   padding: 0.65rem 2rem;
   font-size: 0.95rem;
@@ -893,6 +898,15 @@ input[type="date"].author-input {
 @keyframes pulse-speak {
   0%, 100% { box-shadow: 0 0 10px rgba(168, 85, 247, 0.4); }
   50%       { box-shadow: 0 0 22px rgba(168, 85, 247, 0.85); }
+}
+
+/* ── Accessibility: respect reduced motion preference ────── */
+@media (prefers-reduced-motion: reduce) {
+  .speak-btn.speaking,
+  .answer-speak-btn.speaking,
+  .record-btn.recording .record-dot {
+    animation: none;
+  }
 }
 
 /* ── Photo lightbox ──────────────────────────────────────── */

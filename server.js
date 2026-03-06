@@ -5,6 +5,7 @@ const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const crypto = require('crypto');
 const fs = require('fs');
+const fsp = fs.promises;
 const path = require('path');
 const { Readable } = require('stream');
 
@@ -21,6 +22,7 @@ const WHISPER_MODEL = process.env.WHISPER_MODEL || 'Systran/faster-whisper-small
 const TTS_URL = process.env.TTS_URL || 'http://speaches:8000';
 const TTS_MODEL = process.env.TTS_MODEL || 'speaches-ai/Kokoro-82M-v1.0-ONNX';
 const TTS_VOICE = process.env.TTS_VOICE || 'af_heart';
+const TTS_MAX_BYTES = 10 * 1024 * 1024; // 10 MB cap on TTS responses
 
 // Ensure media/tmp dirs exist at startup; clean up any leftover tmp chunks
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -122,14 +124,14 @@ function normalizeMembers(raw) {
   return raw.map(m => typeof m === 'string' ? { name: m, dob: null } : m);
 }
 
-function loadMembers() {
-  try { return normalizeMembers(JSON.parse(fs.readFileSync(MEMBERS_FILE, 'utf8'))); }
+async function loadMembers() {
+  try { return normalizeMembers(JSON.parse(await fsp.readFile(MEMBERS_FILE, 'utf8'))); }
   catch { return []; }
 }
 
-function saveMembers(members) {
-  fs.mkdirSync(path.dirname(MEMBERS_FILE), { recursive: true });
-  fs.writeFileSync(MEMBERS_FILE, JSON.stringify(members, null, 2));
+async function saveMembers(members) {
+  await fsp.mkdir(path.dirname(MEMBERS_FILE), { recursive: true });
+  await fsp.writeFile(MEMBERS_FILE, JSON.stringify(members, null, 2));
 }
 
 function calcAge(dob) {
@@ -142,13 +144,13 @@ function calcAge(dob) {
   return age;
 }
 
-app.get('/api/members', (req, res) => {
-  res.json(loadMembers());
+app.get('/api/members', async (req, res) => {
+  res.json(await loadMembers());
 });
 
 const MAX_NAME_LEN = 80;
 
-app.post('/api/members', (req, res) => {
+app.post('/api/members', async (req, res) => {
   const { name, dob } = req.body;
   if (!name || typeof name !== 'string' || !name.trim()) {
     return res.status(400).json({ error: 'Invalid name' });
@@ -156,7 +158,7 @@ app.post('/api/members', (req, res) => {
   if (name.trim().length > MAX_NAME_LEN) {
     return res.status(400).json({ error: 'Name too long' });
   }
-  const members = loadMembers();
+  const members = await loadMembers();
   const trimmed = name.trim();
   const idx = members.findIndex(m => m.name === trimmed);
   if (idx >= 0) {
@@ -164,20 +166,20 @@ app.post('/api/members', (req, res) => {
   } else {
     members.push({ name: trimmed, dob: dob || null });
   }
-  saveMembers(members);
+  await saveMembers(members);
   res.json({ ok: true });
 });
 
 // ── Answers API ────────────────────────────────────────────────────────────
 
-function loadAnswers() {
-  try { return JSON.parse(fs.readFileSync(ANSWERS_FILE, 'utf8')); }
+async function loadAnswers() {
+  try { return JSON.parse(await fsp.readFile(ANSWERS_FILE, 'utf8')); }
   catch { return {}; }
 }
 
-function saveAnswers(answers) {
-  fs.mkdirSync(path.dirname(ANSWERS_FILE), { recursive: true });
-  fs.writeFileSync(ANSWERS_FILE, JSON.stringify(answers, null, 2));
+async function saveAnswers(answers) {
+  await fsp.mkdir(path.dirname(ANSWERS_FILE), { recursive: true });
+  await fsp.writeFile(ANSWERS_FILE, JSON.stringify(answers, null, 2));
 }
 
 // Normalize any legacy format to an array of { answer, author }
@@ -188,8 +190,8 @@ function normalizeEntries(entry) {
   return [{ answer: entry.answer || '', author: entry.author || '' }];
 }
 
-app.get('/api/answers', (req, res) => {
-  const raw = loadAnswers();
+app.get('/api/answers', async (req, res) => {
+  const raw = await loadAnswers();
   const normalized = {};
   for (const [id, entry] of Object.entries(raw)) {
     normalized[id] = normalizeEntries(entry);
@@ -199,17 +201,17 @@ app.get('/api/answers', (req, res) => {
 
 const VALID_QUESTION_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 
-app.get('/api/answers/:questionId', (req, res) => {
+app.get('/api/answers/:questionId', async (req, res) => {
   if (!VALID_QUESTION_ID.test(req.params.questionId))
     return res.status(400).json({ error: 'Invalid question ID' });
-  const answers = loadAnswers();
+  const answers = await loadAnswers();
   res.json({ answers: normalizeEntries(answers[req.params.questionId]) });
 });
 
 const MAX_ANSWER_LEN = 10_000;
 const VALID_MEDIA_PATH = /^media\/[a-zA-Z0-9_-]+\.(webm|m4a|jpg)$/;
 
-app.post('/api/answers/:questionId', (req, res) => {
+app.post('/api/answers/:questionId', async (req, res) => {
   if (!VALID_QUESTION_ID.test(req.params.questionId))
     return res.status(400).json({ error: 'Invalid question ID' });
   const { answer, author, audio, photos, forceNew } = req.body;
@@ -221,12 +223,12 @@ app.post('/api/answers/:questionId', (req, res) => {
     return res.status(400).json({ error: 'Invalid audio path' });
   if (Array.isArray(photos) && photos.some(p => !VALID_MEDIA_PATH.test(p)))
     return res.status(400).json({ error: 'Invalid photo path' });
-  const answers = loadAnswers();
+
+  const [answers, members] = await Promise.all([loadAnswers(), loadMembers()]);
   const entries = normalizeEntries(answers[req.params.questionId]);
   const authorKey = (author || '').trim();
 
   // Calculate age from stored dob at the moment of saving
-  const members = loadMembers();
   const member = members.find(m => m.name === authorKey);
   const age = member ? calcAge(member.dob) : null;
 
@@ -242,16 +244,16 @@ app.post('/api/answers/:questionId', (req, res) => {
     : [...entries.filter(e => e.author !== authorKey), entry];
 
   answers[req.params.questionId] = newEntries;
-  saveAnswers(answers);
+  await saveAnswers(answers);
   res.json({ ok: true });
 });
 
-app.delete('/api/answers/:questionId', (req, res) => {
+app.delete('/api/answers/:questionId', async (req, res) => {
   if (!VALID_QUESTION_ID.test(req.params.questionId))
     return res.status(400).json({ error: 'Invalid question ID' });
-  const answers = loadAnswers();
+  const answers = await loadAnswers();
   delete answers[req.params.questionId];
-  saveAnswers(answers);
+  await saveAnswers(answers);
   res.json({ ok: true });
 });
 
@@ -264,7 +266,7 @@ const chunkUpload = multer({
 
 async function transcribeAudio(filePath, filename, mimeType) {
   try {
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = await fsp.readFile(filePath);
     const blob = new Blob([fileBuffer], { type: mimeType || 'audio/webm' });
     const form = new FormData();
     form.append('file', blob, filename);
@@ -315,26 +317,32 @@ app.post('/api/upload/chunk', chunkUpload.single('chunk'), async (req, res) => {
   }
 
   const tmpDir = path.join(TMP_DIR, uploadId);
-  fs.mkdirSync(tmpDir, { recursive: true });
+  await fsp.mkdir(tmpDir, { recursive: true });
 
   // Enforce total size cap: check accumulated size before writing
-  const existingChunks = fs.existsSync(tmpDir) ? fs.readdirSync(tmpDir) : [];
-  const existingSize = existingChunks.reduce((sum, f) => sum + fs.statSync(path.join(tmpDir, f)).size, 0);
+  let existingSize = 0;
+  try {
+    const existingChunks = await fsp.readdir(tmpDir);
+    const sizes = await Promise.all(existingChunks.map(f => fsp.stat(path.join(tmpDir, f)).then(s => s.size)));
+    existingSize = sizes.reduce((sum, s) => sum + s, 0);
+  } catch {}
+
   if (existingSize + req.file.buffer.length > MAX_FILE_BYTES) {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    await fsp.rm(tmpDir, { recursive: true, force: true });
     return res.status(413).json({ error: 'File too large' });
   }
 
-  fs.writeFileSync(path.join(tmpDir, String(idx).padStart(6, '0')), req.file.buffer);
+  await fsp.writeFile(path.join(tmpDir, String(idx).padStart(6, '0')), req.file.buffer);
 
   if (idx < total - 1) {
     return res.json({ done: false });
   }
 
   // All chunks received — assemble
-  const chunkFiles = fs.readdirSync(tmpDir).sort();
-  const assembled = Buffer.concat(chunkFiles.map(f => fs.readFileSync(path.join(tmpDir, f))));
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+  const chunkFiles = (await fsp.readdir(tmpDir)).sort();
+  const chunks = await Promise.all(chunkFiles.map(f => fsp.readFile(path.join(tmpDir, f))));
+  const assembled = Buffer.concat(chunks);
+  await fsp.rm(tmpDir, { recursive: true, force: true });
 
   const isAudio = mimeType && mimeType.startsWith('audio/');
   const ext = isAudio
@@ -342,7 +350,7 @@ app.post('/api/upload/chunk', chunkUpload.single('chunk'), async (req, res) => {
     : 'jpg';
   const filename = `${uploadId}.${ext}`;
   const outPath = path.join(MEDIA_DIR, filename);
-  fs.writeFileSync(outPath, assembled);
+  await fsp.writeFile(outPath, assembled);
 
   let transcription = null;
   if (isAudio) {
@@ -367,8 +375,19 @@ app.get('/api/speak', async (req, res) => {
       signal: AbortSignal.timeout(30_000),
     });
     if (!ttsRes.ok) throw new Error(`TTS ${ttsRes.status}`);
+
+    // Cap response size — don't stream unlimited data from the TTS server
+    const contentLength = parseInt(ttsRes.headers.get('content-length') || '0', 10);
+    if (contentLength > TTS_MAX_BYTES) throw new Error('TTS response too large');
+
     res.setHeader('Content-Type', 'audio/mpeg');
-    Readable.fromWeb(ttsRes.body).pipe(res);
+    let bytesReceived = 0;
+    const stream = Readable.fromWeb(ttsRes.body);
+    stream.on('data', chunk => {
+      bytesReceived += chunk.length;
+      if (bytesReceived > TTS_MAX_BYTES) stream.destroy(new Error('TTS response too large'));
+    });
+    stream.pipe(res);
   } catch (e) {
     console.error('TTS failed:', e.message);
     if (!res.headersSent) res.status(502).json({ error: 'TTS unavailable' });
@@ -377,10 +396,14 @@ app.get('/api/speak', async (req, res) => {
 
 // ── Media file serving (auth required — same middleware already applied above) ──
 
-app.get('/media/:filename', (req, res) => {
+app.get('/media/:filename', async (req, res) => {
   const filename = path.basename(req.params.filename); // strip any path components
   const filePath = path.join(MEDIA_DIR, filename);
-  if (!fs.existsSync(filePath)) return res.status(404).send('Not found');
+  try {
+    await fsp.access(filePath);
+  } catch {
+    return res.status(404).send('Not found');
+  }
   res.sendFile(filePath);
 });
 
