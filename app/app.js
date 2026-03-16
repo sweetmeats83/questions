@@ -550,6 +550,7 @@ function updateRecordingUI(recording) {
 
 async function processAudioUpload(blob) {
   setStatus('Uploading…');
+  document.getElementById('transcribingOverlay').hidden = false;
   try {
     const result = await uploadChunked(blob, blob.type || 'audio/webm');
     if (result && result.done) {
@@ -566,6 +567,8 @@ async function processAudioUpload(blob) {
     }
   } catch {
     setStatus('Upload failed. Try again.', true);
+  } finally {
+    document.getElementById('transcribingOverlay').hidden = true;
   }
 }
 
