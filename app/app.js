@@ -340,40 +340,44 @@ function renderAnswersPanel() {
     return;
   }
 
-  // Group by category
-  const byCategory = {};
-  for (const q of entries) {
-    if (!byCategory[q.category]) byCategory[q.category] = [];
-    byCategory[q.category].push(q);
-  }
+  // Newest 10 first (by most recent savedAt), then shuffle the rest
+  const latestSavedAt = q => {
+    const dates = (allAnswersData[q.id] || []).map(a => a.savedAt).filter(Boolean);
+    return dates.length ? dates.reduce((a, b) => a > b ? a : b) : '';
+  };
+  entries.sort((a, b) => latestSavedAt(b).localeCompare(latestSavedAt(a)));
+  const ordered = [
+    ...entries.slice(0, 10),
+    ...entries.slice(10).sort(() => Math.random() - 0.5),
+  ];
 
-  list.innerHTML = Object.entries(byCategory).map(([category, qs]) => `
-    <div class="category-group">
-      <p class="question-category">${escapeHtml(category)}</p>
-      ${qs.map(q => {
-        const qAnswers = allAnswersData[q.id];
-        const shown = activeAuthorFilter
-          ? qAnswers.filter(a => a.author === activeAuthorFilter)
-          : qAnswers;
-        return `
-          <div class="answer-entry">
-            <div class="answer-entry-header">
-              <p class="answer-entry-question">${escapeHtml(q.question)}</p>
-              <button class="answer-speak-btn" data-qid="${q.id}" title="Read aloud" type="button">🔊</button>
-              <button class="answer-edit-btn" data-qid="${q.id}" title="Add or edit a response" type="button">✏</button>
-            </div>
-            ${shown.map(a => `
-              <div class="answer-sub-entry">
-                <p class="answer-entry-answer">${escapeHtml(a.answer)}</p>
-                ${a.author ? `<p class="answer-author">— ${escapeHtml(a.author)}${a.age != null ? `, ${a.age}` : ''}</p>` : ''}
-                ${renderAnswerMedia(a)}
-              </div>
-            `).join('')}
+  const renderEntry = q => {
+    const qAnswers = allAnswersData[q.id];
+    const shown = activeAuthorFilter
+      ? qAnswers.filter(a => a.author === activeAuthorFilter)
+      : qAnswers;
+    return `
+      <div class="answer-entry">
+        <div class="answer-entry-header">
+          <p class="answer-entry-question">
+            <span class="answer-entry-category">${escapeHtml(q.category)}</span>
+            ${escapeHtml(q.question)}
+          </p>
+          <button class="answer-speak-btn" data-qid="${q.id}" title="Read aloud" type="button">🔊</button>
+          <button class="answer-edit-btn" data-qid="${q.id}" title="Add or edit a response" type="button">✏</button>
+        </div>
+        ${shown.map(a => `
+          <div class="answer-sub-entry">
+            <p class="answer-entry-answer">${escapeHtml(a.answer)}</p>
+            ${a.author ? `<p class="answer-author">— ${escapeHtml(a.author)}${a.age != null ? `, ${a.age}` : ''}</p>` : ''}
+            ${renderAnswerMedia(a)}
           </div>
-        `;
-      }).join('')}
-    </div>
-  `).join('');
+        `).join('')}
+      </div>
+    `;
+  };
+
+  list.innerHTML = ordered.map(renderEntry).join('');
 
   // Wire up speak buttons
   list.querySelectorAll('.answer-speak-btn').forEach(btn => {

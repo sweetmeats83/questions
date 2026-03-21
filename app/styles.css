@@ -548,6 +548,15 @@ input[type="date"].author-input {
   gap: 0.5rem;
 }
 
+.answer-entry-category {
+  display: block;
+  font-size: 0.7rem;
+  color: rgba(168, 85, 247, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.15rem;
+}
+
 .answer-entry-question {
   flex: 1;
   font-size: 0.9rem;

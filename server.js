@@ -232,7 +232,7 @@ app.post('/api/answers/:questionId', async (req, res) => {
   const member = members.find(m => m.name === authorKey);
   const age = member ? calcAge(member.dob) : null;
 
-  const entry = { answer, author: authorKey };
+  const entry = { answer, author: authorKey, savedAt: new Date().toISOString() };
   if (age !== null) entry.age = age;
   if (audio) entry.audio = audio;
   if (Array.isArray(photos) && photos.length) entry.photos = photos;
