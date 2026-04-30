@@ -217,7 +217,9 @@ app.post('/api/answers/:questionId', async (req, res) => {
   const { answer, author, audio, photos, forceNew } = req.body;
   if (typeof answer !== 'string') return res.status(400).json({ error: 'Invalid' });
   if (answer.length > MAX_ANSWER_LEN) return res.status(400).json({ error: 'Answer too long' });
-  if (author && typeof author === 'string' && author.trim().length > MAX_NAME_LEN)
+  if (!author || typeof author !== 'string' || !author.trim())
+    return res.status(400).json({ error: 'Author name required' });
+  if (author.trim().length > MAX_NAME_LEN)
     return res.status(400).json({ error: 'Author name too long' });
   if (audio && !VALID_MEDIA_PATH.test(audio))
     return res.status(400).json({ error: 'Invalid audio path' });
@@ -280,10 +282,10 @@ async function transcribeAudio(filePath, filename, mimeType) {
     });
     if (!res.ok) throw new Error(`Whisper ${res.status}`);
     const data = await res.json();
-    return data.text || null;
+    return { text: data.text || null, failed: false };
   } catch (e) {
     console.error('Transcription failed:', e.message);
-    return null;
+    return { text: null, failed: true };
   }
 }
 
@@ -338,8 +340,12 @@ app.post('/api/upload/chunk', chunkUpload.single('chunk'), async (req, res) => {
     return res.json({ done: false });
   }
 
-  // All chunks received — assemble
+  // All chunks received — verify all are present before assembling
   const chunkFiles = (await fsp.readdir(tmpDir)).sort();
+  if (chunkFiles.length !== total) {
+    await fsp.rm(tmpDir, { recursive: true, force: true });
+    return res.status(400).json({ error: 'Upload incomplete — missing chunks' });
+  }
   const chunks = await Promise.all(chunkFiles.map(f => fsp.readFile(path.join(tmpDir, f))));
   const assembled = Buffer.concat(chunks);
   await fsp.rm(tmpDir, { recursive: true, force: true });
@@ -353,11 +359,14 @@ app.post('/api/upload/chunk', chunkUpload.single('chunk'), async (req, res) => {
   await fsp.writeFile(outPath, assembled);
 
   let transcription = null;
+  let transcriptionFailed = false;
   if (isAudio) {
-    transcription = await transcribeAudio(outPath, filename, mimeType);
+    const result = await transcribeAudio(outPath, filename, mimeType);
+    transcription = result.text;
+    transcriptionFailed = result.failed;
   }
 
-  res.json({ done: true, path: `media/${filename}`, transcription });
+  res.json({ done: true, path: `media/${filename}`, transcription, transcriptionFailed });
 });
 
 // ── TTS proxy — streams speaches audio back to the browser ────────────────

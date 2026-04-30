@@ -564,6 +564,8 @@ async function processAudioUpload(blob) {
         const select = document.getElementById('authorSelect');
         if (select.value && select.value !== '__new__') setAnswerEnabled(true);
         setStatus('Transcribed! Edit if needed, then save.');
+      } else if (result.transcriptionFailed) {
+        setStatus('Audio saved. Transcription failed — add your written answer.', true);
       } else {
         setStatus('Audio saved. Add your written answer too.');
       }
