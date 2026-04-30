@@ -4,6 +4,8 @@
 
 A family web app that rolls 3D physics dice to randomly select a question from a pool of 1,000+ questions. Family members record their answers as text, audio recordings, and photos — all stored server-side and browsable any time. Questions can be read aloud via text-to-speech, and voice answers are automatically transcribed.
 
+![Question Roller demo](question-roller.gif)
+
 | | | |
 |:---:|:---:|:---:|
 | ![Login screen](screenshots/login.png) | ![Dice roll](screenshots/dice-roll.png) | ![Question card](screenshots/question-card.png) |
